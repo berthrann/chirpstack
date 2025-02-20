@@ -362,6 +362,15 @@ pub async fn get_device(
         .map_err(|e| Error::from_diesel(e, dev_eui.to_string()))
 }
 
+pub async fn get_latest_device_by_dev_eui(dev_eui: EUI64) -> Result<FuotaDeploymentDevice, Error> {
+    fuota_deployment_device::dsl::fuota_deployment_device
+        .filter(fuota_deployment_device::dsl::dev_eui.eq(&dev_eui))
+        .order_by(fuota_deployment_device::created_at.desc())
+        .first(&mut get_async_db_conn().await?)
+        .await
+        .map_err(|e| Error::from_diesel(e, dev_eui.to_string()))
+}
+
 pub async fn update_device(d: FuotaDeploymentDevice) -> Result<FuotaDeploymentDevice, Error> {
     let d: FuotaDeploymentDevice = diesel::update(
         fuota_deployment_device::dsl::fuota_deployment_device
@@ -650,7 +659,11 @@ pub async fn get_max_fragment_size(d: &FuotaDeployment) -> Result<usize> {
         .n
         - 3;
 
-    Ok(max_pl_size)
+    Ok(if max_pl_size > d.payload.len() {
+        d.payload.len()
+    } else {
+        max_pl_size
+    })
 }
 
 pub fn get_multicast_timeout(d: &FuotaDeployment) -> Result<usize> {
